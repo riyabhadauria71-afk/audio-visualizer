@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Circular Audio Equalizer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+    :root {
+        --bg: #050510;
+        --accent: #5b8cff;
+        --accent-soft: #9a6bff;
+        --text: #f5f5f5;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top, #13132a 0, #050510 55%);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+    }
+
+    .wrapper {
+        width: min(500px, 90vw);
+        aspect-ratio: 1 / 1.15;
+        background: rgba(10, 10, 25, 0.85);
+        border-radius: 24px;
+        padding: 20px 16px;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(18px);
+        border: 1px solid rgba(120, 130, 255, 0.25);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .title-block {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .title-block h1 {
+        font-size: 1.1rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+
+    .title-block span {
+        font-size: 0.75rem;
+        opacity: 0.7;
+    }
+
+    .status-pill {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 160, 255, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: radial-gradient(circle at top left, rgba(120, 150, 255, 0.4), transparent);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #f44336;
+        box-shadow: 0 0 12px rgba(244, 67, 54, 0.7);
+    }
+
+    .status-dot.active {
+        background: #4caf50;
+        box-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
+    }
+
+    .visualizer-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+
+    canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    .center-label {
+        position: absolute;
+        text-align: center;
+        pointer-events: none;
+    }
+
+    .center-label h2 {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        margin-bottom: 4px;
+        opacity: 0.7;
+    }
+
+    .center-label .level {
+        font-size: 1.8rem;
+        font-weight: 600;
+    }
+
+    .center-label .freq {
+        font-size: 0.8rem;
+        opacity: 0.7;
+        margin-top: 4px;
+    }
+
+    .controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 4px;
+    }
+
+    .btn {
+        flex: 1;
+        border-radius: 999px;
+        border: none;
+        padding: 10px 16px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.18s ease;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+        color: #fff;
+        box-shadow: 0 10px 30px rgba(90, 120, 255, 0.65);
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 38px rgba(90, 120, 255, 0.9);
+    }
+
+    .btn-primary:active {
+        transform: translateY(0);
+        box-shadow: 0 6px 18px rgba(90, 120, 255, 0.65);
+    }
+
+    .btn-ghost {
+        flex: 0 0 auto;
+        padding-inline: 14px;
+        background: transparent;
+        color: rgba(240, 240, 255, 0.8);
+        border: 1px solid rgba(140, 150, 255, 0.35);
+    }
+
+    .btn-ghost:hover {
+        background: rgba(120, 130, 255, 0.12);
+    }
+
+    .hint {
+        font-size: 0.75rem;
+        opacity: 0.65;
+    }
+
+    @media (max-width: 480px) {
+        .wrapper {
+            padding: 16px 12px;
+            border-radius: 18px;
+        }
+
+        .center-label .level {
+            font-size: 1.4rem;
+        }
+    }
+</style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <div class="title-block">
+            <h1>Circular Audio Equalizer</h1>
+            <span>Live microphone · Web Audio API</span>
+        </div>
+        <div class="status-pill" id="statusText">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusLabel">Mic idle</span>
+        </div>
+    </div>
+
+    <div class="visualizer-container">
+        <canvas id="visualizer"></canvas>
+        <div class="center-label">
+            <h2>Input level</h2>
+            <div class="level" id="levelLabel">– dB</div>
+            <div class="freq" id="freqLabel">Waiting for microphone…</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-primary" id="toggleBtn">Enable Microphone</button>
+        <button class="btn btn-ghost hint" id="qualityBtn">Hi‑Res</button>
+        <span class="hint">Best viewed with headphones in a quiet room.</span>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("visualizer");
+    const ctx = canvas.getContext("2d");
+    const toggleBtn = document.getElementById("toggleBtn");
+    const statusDot = document.getElementById("statusDot");
+    const statusLabel = document.getElementById("statusLabel");
+    const statusText = document.getElementById("statusText");
+    const levelLabel = document.getElementById("levelLabel");
+    const freqLabel = document.getElementById("freqLabel");
+    const qualityBtn = document.getElementById("qualityBtn");
+
+    let audioCtx = null;
+    let analyser = null;
+    let micStream = null;
+    let dataArray;
+    let bufferLength;
+    let running = false;
+    let hiRes = true;
+
+    function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    async function initAudio() {
+        if (audioCtx) return;
+
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = hiRes ? 2048 : 1024;
+            analyser.smoothingTimeConstant = 0.85;
+
+            const source = audioCtx.createMediaStreamSource(micStream);
+            source.connect(analyser);
+
+            bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+
+            updateStatus(true, "Listening…");
+            freqLabel.textContent = "Live frequency spectrum";
+            startAnimation();
+        } catch (err) {
+            console.error(err);
+            updateStatus(false, "Mic blocked");
+            freqLabel.textContent = "Allow microphone access in your browser.";
+        }
+    }
+
+    function updateStatus(active, text) {
+        if (active) {
+            statusDot.classList.add("active");
+            statusLabel.textContent = text || "Live";
+            statusText.style.borderColor = "rgba(100, 255, 190, 0.6)";
+        } else {
+            statusDot.classList.remove("active");
+            statusLabel.textContent = text || "Mic idle";
+            statusText.style.borderColor = "rgba(140, 150, 255, 0.3)";
+        }
+    }
+
+    function stopAudio() {
+        if (micStream) {
+            micStream.getTracks().forEach(t => t.stop());
+            micStream = null;
+        }
+        if (audioCtx) {
+            audioCtx.close();
+            audioCtx = null;
+        }
+        analyser = null;
+        running = false;
+        updateStatus(false, "Mic off");
+        levelLabel.textContent = "– dB";
+        freqLabel.textContent = "Visualizer paused";
+    }
+
+    function computeRMS(data) {
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+            const v = (data[i] - 128) / 128;
+            sum += v * v;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        return rms;
+    }
+
+    function startAnimation() {
+        if (running || !analyser) return;
+        running = true;
+
+        const draw = () => {
+            if (!running || !analyser) return;
+
+            requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+
+            const rect = canvas.getBoundingClientRect();
+            const w = rect.width;
+            const h = rect.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const minDim = Math.min(w, h);
+            const innerRadius = minDim * 0.18;
+            const outerRadius = minDim * 0.44;
+
+            ctx.clearRect(0, 0, w, h);
+
+            const grd = ctx.createRadialGradient(cx, cy, innerRadius * 0.4, cx, cy, outerRadius * 1.2);
+            grd.addColorStop(0, "rgba(20, 30, 60, 0.9)");
+            grd.addColorStop(0.5, "rgba(10, 15, 35, 0.9)");
+            grd.addColorStop(1, "rgba(2, 4, 12, 1)");
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            const barCount = 160;
+            const step = Math.floor(dataArray.length / barCount);
+            const fullCircle = Math.PI * 2;
+
+            analyser.getByteTimeDomainData(dataArray);
+            const rms = computeRMS(dataArray);
+            const db = 20 * Math.log10(rms || 0.0000001);
+            const clampedDb = Math.max(-60, Math.min(0, db));
+            levelLabel.textContent = clampedDb.toFixed(1) + " dB";
+
+            const pulse = 1 + (rms * 0.3);
+
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(90, 120, 255, 0.5)";
+            ctx.lineWidth = 2;
+            const ringRadius = innerRadius * pulse;
+            ctx.arc(0, 0, ringRadius, 0, fullCircle);
+            ctx.stroke();
+
+            ctx.beginPath();
+            const glowRadius = innerRadius * 0.5 * pulse;
+            const glowGrd = ctx.createRadialGradient(0, 0, glowRadius * 0.1, 0, 0, glowRadius);
+            glowGrd.addColorStop(0, "rgba(110, 210, 255, 0.7)");
+            glowGrd.addColorStop(1, "rgba(10, 30, 80, 0)");
+            ctx.fillStyle = glowGrd;
+            ctx.arc(0, 0, glowRadius, 0, fullCircle);
+            ctx.fill();
+
+            analyser.getByteFrequencyData(dataArray);
+
+            let dominantIndex = 0;
+            let dominantValue = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                if (dataArray[i] > dominantValue) {
+                    dominantValue = dataArray[i];
+                    dominantIndex = i;
+                }
+            }
+            const nyquist = audioCtx ? audioCtx.sampleRate / 2 : 22050;
+            const dominantFreq = Math.round((dominantIndex / dataArray.length) * nyquist);
+            freqLabel.textContent = dominantFreq + " Hz peak";
+
+            for (let i = 0; i < barCount; i++) {
+                const index = i * step;
+                const value = dataArray[index] || 0;
+                const normalized = value / 255;
+
+                const angle = (i / barCount) * fullCircle;
+                const barInner = innerRadius * 1.05 * pulse;
+                const barOuter = barInner + normalized * (outerRadius - innerRadius);
+
+                const x0 = Math.cos(angle) * barInner;
+                const y0 = Math.sin(angle) * barInner;
+                const x1 = Math.cos(angle) * barOuter;
+                const y1 = Math.sin(angle) * barOuter;
+
+                const hue = 200 + normalized * 80;
+                const sat = 70 + normalized * 25;
+                const light = 45 + normalized * 20;
+                const alpha = 0.45 + normalized * 0.5;
+
+                ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.moveTo(x0, y0);
+                ctx.lineTo(x1, y1);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        };
+
+        draw();
+    }
+
+    toggleBtn.addEventListener("click", async () => {
+        if (!audioCtx || !micStream) {
+            toggleBtn.textContent = "Disable Microphone";
+            await initAudio();
+        } else {
+            toggleBtn.textContent = "Enable Microphone";
+            stopAudio();
+        }
+    });
+
+    qualityBtn.addEventListener("click", () => {
+        hiRes = !hiRes;
+        qualityBtn.textContent = hiRes ? "Hi‑Res" : "Lite";
+        if (analyser) {
+            analyser.fftSize = hiRes ? 2048 : 1024;
+            bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+        }
+    });
+</script>
+</body>
+</html>
